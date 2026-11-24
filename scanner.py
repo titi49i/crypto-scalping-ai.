@@ -43,23 +43,33 @@ def valid_base(base):
 
 
 def get_markets():
-    spot_info = get(SPOT + "/api/v3/exchangeInfo")
-    spot_tickers = get(SPOT + "/api/v3/ticker/24hr")
+    markets = []
 
-    spot_allowed = {
-        x["symbol"] for x in spot_info["symbols"]
-        if x["status"] == "TRADING"
-        and x["quoteAsset"] == "USDT"
-        and x.get("isSpotTradingAllowed", False)
-        and valid_base(x["baseAsset"])
-    }
+    # Spot : on ignore le marché si Binance le bloque
+    try:
+        spot_info = get(SPOT + "/api/v3/exchangeInfo")
+        spot_tickers = get(SPOT + "/api/v3/ticker/24hr")
 
-    spot = sorted(
-        [x for x in spot_tickers if x["symbol"] in spot_allowed],
-        key=lambda x: float(x["quoteVolume"]),
-        reverse=True
-    )[:100]
+        spot_allowed = {
+            x["symbol"] for x in spot_info["symbols"]
+            if x["status"] == "TRADING"
+            and x["quoteAsset"] == "USDT"
+            and x.get("isSpotTradingAllowed", False)
+            and valid_base(x["baseAsset"])
+        }
 
+        spot = sorted(
+            [x for x in spot_tickers if x["symbol"] in spot_allowed],
+            key=lambda x: float(x["quoteVolume"]),
+            reverse=True
+        )[:100]
+
+        markets += [("SPOT", x["symbol"]) for x in spot]
+
+    except Exception as e:
+        print("Spot indisponible :", e)
+
+    # Futures
     futures_info = get(FUTURES + "/fapi/v1/exchangeInfo")
     futures_tickers = get(FUTURES + "/fapi/v1/ticker/24hr")
 
@@ -77,11 +87,9 @@ def get_markets():
         reverse=True
     )[:100]
 
-    return [
-        ("SPOT", x["symbol"]) for x in spot
-    ] + [
-        ("FUTURES", x["symbol"]) for x in futures
-    ]
+    markets += [("FUTURES", x["symbol"]) for x in futures]
+
+    return markets
 
 
 def candles(market, symbol, interval):
